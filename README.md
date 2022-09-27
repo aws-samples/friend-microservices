@@ -87,7 +87,7 @@ To deploy the example stack to your default AWS account/region, under project ro
 
 ### Send Test Friend Action Events
 
-Since front SQS is FIFO, you need to send messages in three separate time, to get to the final state.
+Since front SQS is Standard queue, you need to send test messages three times separately, to get to the final state.
 With AWS CLI:
 
 ```
