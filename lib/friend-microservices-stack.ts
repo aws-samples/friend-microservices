@@ -6,9 +6,8 @@ import {
 } from "aws-cdk-lib/aws-dynamodb";
 import { Construct } from "constructs";
 import {
-  CfnEventSourceMapping,
-  EventSourceMapping,
-  EventSourceMappingOptions,
+  FilterCriteria,
+  FilterRule,
   Runtime,
   StartingPosition,
 } from "aws-cdk-lib/aws-lambda";
@@ -20,7 +19,12 @@ import {
 } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Queue } from "aws-cdk-lib/aws-sqs";
 import { RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
-import { SqsDlq, SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import {
+  DynamoEventSource,
+  SqsDlq,
+  SqsEventSource,
+  StreamEventSourceProps,
+} from "aws-cdk-lib/aws-lambda-event-sources";
 import { LambdaRestApi } from "aws-cdk-lib/aws-apigateway";
 
 const friendTableName = tableMap.get(Friend)!;
@@ -106,117 +110,80 @@ export class FriendMicroservicesStack extends Stack {
 
     const stateHandleDLQ = new SqsDlq(new Queue(this, "stateHandleDLQ"));
 
-    const eventSourceMappingOptions: EventSourceMappingOptions = {
+    const streamEventSourceProps: StreamEventSourceProps = {
       startingPosition: StartingPosition.LATEST,
       batchSize: 5,
-      eventSourceArn: friendTable.tableStreamArn,
       retryAttempts: 1,
       onFailure: stateHandleDLQ,
       reportBatchItemFailures: true,
     };
 
-    const requestStateSourceMapping = new EventSourceMapping(
-      this,
-      "requestStateHandlerSourceMapping",
-      {
-        target: requestStateHandler,
-        ...eventSourceMappingOptions,
-      }
-    );
-    const requestCfnSourceMapping = requestStateSourceMapping.node
-      .defaultChild as CfnEventSourceMapping;
-    requestCfnSourceMapping.addPropertyOverride("FilterCriteria", {
-      Filters: [
-        {
-          Pattern: JSON.stringify({
+    requestStateHandler.addEventSource(
+      new DynamoEventSource(friendTable, {
+        filters: [
+          FilterCriteria.filter({
+            eventName: FilterRule.isEqual("INSERT"),
             dynamodb: {
               NewImage: {
-                state: { S: [State.Requested] },
+                state: { S: FilterRule.isEqual(State.Requested) },
               },
             },
-            eventName: ["INSERT"],
           }),
-        },
-      ],
-    });
-
-    const acceptStateSourceMapping = new EventSourceMapping(
-      this,
-      "acceptStateHandlerSourceMapping",
-      {
-        target: acceptStateHandler,
-        ...eventSourceMappingOptions,
-      }
+        ],
+        ...streamEventSourceProps,
+      })
     );
-    const acceptCfnSourceMapping = acceptStateSourceMapping.node
-      .defaultChild as CfnEventSourceMapping;
-    acceptCfnSourceMapping.addPropertyOverride("FilterCriteria", {
-      Filters: [
-        {
-          Pattern: JSON.stringify({
+
+    acceptStateHandler.addEventSource(
+      new DynamoEventSource(friendTable, {
+        filters: [
+          FilterCriteria.filter({
+            eventName: FilterRule.isEqual("MODIFY"),
             dynamodb: {
               NewImage: {
-                state: { S: [State.Friends] },
+                state: { S: FilterRule.isEqual(State.Friends) },
               },
               OldImage: {
-                state: { S: [State.Pending] },
+                state: { S: FilterRule.isEqual(State.Pending) },
               },
             },
-            eventName: ["MODIFY"],
           }),
-        },
-      ],
-    });
-
-    const rejectStateSourceMapping = new EventSourceMapping(
-      this,
-      "rejectStateHandlerSourceMapping",
-      {
-        target: rejectStateHandler,
-        ...eventSourceMappingOptions,
-      }
+        ],
+        ...streamEventSourceProps,
+      })
     );
-    const rejectCfnSourceMapping = rejectStateSourceMapping.node
-      .defaultChild as CfnEventSourceMapping;
-    rejectCfnSourceMapping.addPropertyOverride("FilterCriteria", {
-      Filters: [
-        {
-          Pattern: JSON.stringify({
+
+    rejectStateHandler.addEventSource(
+      new DynamoEventSource(friendTable, {
+        filters: [
+          FilterCriteria.filter({
+            eventName: FilterRule.isEqual("REMOVE"),
             dynamodb: {
               OldImage: {
-                state: { S: [State.Pending] },
+                state: { S: FilterRule.isEqual(State.Pending) },
               },
             },
-            eventName: ["REMOVE"],
           }),
-        },
-      ],
-    });
-
-    const unfriendStateSourceMapping = new EventSourceMapping(
-      this,
-      "unfriendStateHandlerSourceMapping",
-      {
-        target: unfriendStateHandler,
-        ...eventSourceMappingOptions,
-      }
+        ],
+        ...streamEventSourceProps,
+      })
     );
-    const unfriendCfnSourceMapping = unfriendStateSourceMapping.node
-      .defaultChild as CfnEventSourceMapping;
-    unfriendCfnSourceMapping.addPropertyOverride("FilterCriteria", {
-      Filters: [
-        {
-          Pattern: JSON.stringify({
+
+    unfriendStateHandler.addEventSource(
+      new DynamoEventSource(friendTable, {
+        filters: [
+          FilterCriteria.filter({
+            eventName: FilterRule.isEqual("REMOVE"),
             dynamodb: {
               OldImage: {
-                state: { S: [State.Friends] },
+                state: { S: FilterRule.isEqual(State.Friends) },
               },
             },
-            eventName: ["REMOVE"],
           }),
-        },
-      ],
-    });
+        ],
+        ...streamEventSourceProps,
+      })
+    );
 
     const readAPI = new LambdaRestApi(this, "readAPI", {
       handler: readHandler,
