@@ -108,13 +108,13 @@ export class FriendMicroservicesStack extends Stack {
       })
     );
 
-    const stateHandleDLQ = new SqsDlq(new Queue(this, "stateHandleDLQ"));
+    const stateHandlerDLQ = new SqsDlq(new Queue(this, "stateHandleDLQ"));
 
     const streamEventSourceProps: StreamEventSourceProps = {
       startingPosition: StartingPosition.LATEST,
       batchSize: 5,
       retryAttempts: 1,
-      onFailure: stateHandleDLQ,
+      onFailure: stateHandlerDLQ,
       reportBatchItemFailures: true,
     };
 
