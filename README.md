@@ -1,119 +1,87 @@
-# Friend Microservices Sample
+# Serverless microservices with Amazon API Gateway, Amazon DynamoDB, Amazon SQS, and AWS Lambda
 
-This CDK project is a sample solution for friend microservices in games.\
-The sample solution contains AWS Lambda Functions, Amazon DynamoDB Tables, Amazon SQS Queues and Amazon API Gateway.
+| Key          | Value                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| Environment  | LocalStack, AWS                                                                                      |
+| Services     | API Gateway, DynamoDB, SQS, Lambda                                                                   |
+| Integrations | CDK                                                                                                  |
+| Categories   | Serverless; Microservices                                                                            |
+| Level        | Beginner                                                                                             |
+| GitHub       | [Repository link](https://github.com/localstack/microservices-apigateway-lambda-dynamodb-sqs-sample) |
 
-## Key features
+## Introduction
 
-- the solution is constructed with only serverless services
-- the solution handles friend state management asynchronously
-- the solution utilizes DynamoDB Streams with Event Source Mapping Filters to reduce number of transactional writes
-- the solution has an SQS queue in front, so multiple backend services can send friend actions
-- the solution is decoupled from player management, it simply serves friend state management
-- the solution handles duplicated messages from SQS using Event Source Mapping Filters
+The Serverless microservices application sample demonstrates how you can build and deploy a solution for friend microservices in gaming applications using API Gateway, Lambda, DynamoDB, and SQS. This application sample allows you to handle friend state management asynchronously and utilizes DynamoDB Streams with Event Source Mapping Filters to reduce the number of transactional writes. With an SQS queue, multiple backend services can send friend actions and handle duplicated messages using Event Source Mapping Filters. An API Gateway and a Lambda Function have been implemented to read the data and DynamoDB for data persistence. The sample is decoupled from player management and only serves friend state management. Users can deploy the infrastructure with AWS Cloud Development Kit, and we will demonstrate how you use LocalStack to deploy the infrastructure on your developer machine and your CI environment.
 
-## Assumptions
+## Architecture diagram
 
-- another service, such as a notification service, has bidirectional connection with clients
-- player metadata is stored separately with all player IDs matched
+![Architecture diagram for Serverless microservices with Amazon API Gateway, Amazon DynamoDB, Amazon SQS, and AWS Lambda](images/microservices-apigateway-lambda-dynamodb-sqs-sample-architecture.png)
 
-## Architecture
+We are using the following AWS services and their features to build our infrastructure:
 
-As Shown in the diagram below, there are three Lambda functions (though State Handlers are made of four lambda functions), a single SQS queues in front and a DynamoDB table.\
-`Front Queue` intakes all friend actions from game backend services\
-Each `State Handler` handles different state, and triggered though different Event Source Mapping Filters\
-There also is an API Gateway and a Lambda Function for reading data\
-![alt text](./docs/FriendsMicroservices.png)
+## Prerequisites
 
-## DynamoDB Tables
+- LocalStack Pro
+- [AWS CLI](https://docs.localstack.cloud/user-guide/integrations/aws-cli/) with the `awslocal` wrapper.
+- [CDK](https://docs.localstack.cloud/user-guide/integrations/aws-cdk/) with the `cdklocal` wrapper.
+- [NodeJS v18.0.0](https://nodejs.org/en/download/) with `npm` package manager.
 
-### Friend Table
+Start LocalStack Pro by setting your `LOCALSTACK_API_KEY` to activate the Pro features.
 
-Each entry represents friend state from the perspective of a player with the player ID against a friend with the friend ID.
-
-| PK: player_id     | SK: friend_id     | state                | last_updated |
-| ----------------- | ----------------- | -------------------- | ------------ |
-| string: player ID | string: friend ID | string: friend state | time stamp   |
-
-## Friend States
-
-- Requested
-  - State that the requester sees on his/her entry after sending a friend request
-- Pending
-  - State that the receiver sees on his/her entry after receiving a friend request
-- Friends
-  - State that both players see on their entries once they become friends
-
-## Friend Actions
-
-- Request
-  - initial action to send a friend request to another player
-- Accept
-  - an action to accept a pending friend request from another player
-  - this can only be triggered by the receiver
-- Reject
-  - an action to reject a pending friend request from another player
-  - this can only be triggered by the receiver
-- Unfriend
-  - an action to break off a completed friend relationship between two players
-  - this can be triggered by both players
-
-## Friend Action Message
-
-```
-{
-    "player_id": string,
-    "friend_id": string,
-    "friend_action": Friend Action,
-}
+```shell
+export LOCALSTACK_API_KEY=<your-api-key>
+EXTRA_CORS_ALLOWED_ORIGINS=* localstack start -d
 ```
 
-### Prerequisites
+## Instructions
 
-- An AWS account
-- Nodejs LTS installed, such as 14.x
-- Install Docker Engine
+You can build and deploy the sample application on LocalStack by running our `Makefile` commands. To deploy the infrastructure, you can run `make deploy` after installing the application dependencies. To test the deployed infrastructure, you can run `make test` to run sample tests. Here are instructions to deploy and test it manually step-by-step.
 
-## Usage
+### Creating the infrastructure
 
-### Deployment
+To create the AWS infrastructure locally, you can use CDK and our `cdklocal` wrapper. Before you can deploy the infrastructure, you need to install the application dependencies:
 
-To deploy the example stack to your default AWS account/region, under project root folder, run:
-
-1. `yarn install` to install all the dependencies
-2. `cdk deploy` to deploy this stack to your default AWS account/region
-
-## Test
-
-### Send Test Friend Action Events
-
-Since front SQS is Standard queue, you need to send test messages three times separately, to get to the final state.
-With AWS CLI:
-
-```
-aws sqs send-message-batch --queue-url <QUEUE URL> \
- --entries file://test/testMessages<First|Second|Third>.json
+```shell
+yarn
 ```
 
-If you want to test corner cases, try this:
+To deploy the infrastructure, you can run the following command:
 
-```
-aws sqs send-message-batch --queue-url <QUEUE URL> \
- --entries file://test/cornerCase<1|2>.json
-```
-
-### Get Test Friend Data
-
-With `curl`:
-
-```
-$ curl -X GET 'https://<YOUR ENDPOINT>/friends/player1'
+```shell
+cdklocal bootstrap aws://000000000000/us-east-1
+cdklocal deploy
 ```
 
-## License
+As an output of the last command, you will see the API Gateway endpoint URL. You can use this URL to test the API.
 
-This solution is licensed under the MIT-0 License. See the LICENSE file.
+### Testing the microservice
 
-Also, this application uses below open source project,
+To test the microservice, we will send Friend Action Events to the front SQS queue. We will use the AWS CLI to send the events to the queue. To get the Queue URL, you can run the following command:
 
-- [aigle](https://www.npmjs.com/package/aigle)
+```shell
+awslocal sqs list-queues
+```
+
+Get the URL of the Front Queue and use the following commands to send a friend request event:
+
+```shell
+awslocal sqs send-message-batch --queue-url <QUEUE_URL> --entries file://test/testMessagesFirst.json
+awslocal sqs send-message-batch --queue-url <QUEUE_URL> --entries file://test/testMessagesSecond.json
+awslocal sqs send-message-batch --queue-url <QUEUE_URL> --entries file://test/testMessagesThird.json
+```
+
+To test corner cases, you can send the following messages to the queue:
+
+```shell
+awslocal sqs send-message-batch --queue-url <QUEUE_URL> --entries file://test/cornerCase1.json
+awslocal sqs send-message-batch --queue-url <QUEUE_URL> --entries file://test/cornerCase2.json
+```
+
+To test the microservice now, send the following command using `cURL`:
+
+```shell
+curl -X GET 'https://<LOCAL_APIGATEWAY_ENDPOINT>/friends/player1'
+curl -X GET 'https://<LOCAL_APIGATEWAY_ENDPOINT>/friends/player2'
+curl -X GET 'https://<LOCAL_APIGATEWAY_ENDPOINT>/friends/player3'
+```
+
