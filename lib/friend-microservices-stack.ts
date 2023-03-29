@@ -11,6 +11,7 @@ import {
   Runtime,
   StartingPosition,
 } from "aws-cdk-lib/aws-lambda";
+import * as cdk from "aws-cdk-lib";
 import { Friend, State } from "../models/friend";
 import { keyMap, Keys, tableMap } from "../models/tableDecorator";
 import {
@@ -37,6 +38,7 @@ export class FriendMicroservicesStack extends Stack {
 
     const functionProp: NodejsFunctionProps = {
       runtime: Runtime.NODEJS_14_X,
+      timeout: cdk.Duration.seconds(10000),
       memorySize: 1024,
     };
 
