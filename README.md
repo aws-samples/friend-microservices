@@ -57,6 +57,9 @@ cdklocal bootstrap aws://000000000000/us-east-1
 cdklocal deploy
 ```
 
+*Note: Make sure your region is set to `us-east-1` in your AWS CLI configuration. Alternatively you can adjust the bootstrap command to match your region.
+The region in the Makefile is also set to `us-eat-1` and might need changing.*
+
 As an output of the last command, you will see the API Gateway endpoint URL. You can use this URL to test the API.
 
 ### Testing the microservice
