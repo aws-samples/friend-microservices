@@ -54,7 +54,7 @@ jobs:
       - name: Deploy using CDK
         run: |
           cdklocal bootstrap aws://000000000000/us-east-1
-          cdklocal deploy --require-approval never
+          cdklocal deploy --require-approval never --outputs-file cdk_outputs.json
 
       - name: List the resources
         run: |
@@ -62,31 +62,50 @@ jobs:
           awslocal sqs list-queues 
           awslocal dynamodb list-tables
 
+      - name: Send Messages
+        run: |
+          front_queue_url=$(awslocal sqs list-queues | jq -r .QueueUrls[0])
+          awslocal sqs send-message-batch --queue-url $front_queue_url --entries file://test/testMessagesFirst.json
+          awslocal sqs send-message-batch --queue-url $front_queue_url --entries file://test/testMessagesSecond.json
+          awslocal sqs send-message-batch --queue-url $front_queue_url --entries file://test/testMessagesThird.json
+
+          awslocal sqs send-message-batch --queue-url $front_queue_url --entries file://test/cornerCase1.json
+          awslocal sqs send-message-batch --queue-url $front_queue_url --entries file://test/cornerCase2.json
+
+
       - name: Run tests
         run: |
           yarn test
+          endpoint_url=$(cat cdk.json | jq -r .FriendMicroservicesStack[])
+          result_player_1=$(curl -X GET "$endpoint_url"friends/player1 | jq .[0].friend_id)
+          result_player_2=$(curl -X GET "$endpoint_url"friends/player2 | jq .[0].friend_id)
+          if [[ "$result_player_1" != "friend2" ]] || [[ "$result_player_2" != "friend1" ]]; then
+            echo "unexpected response"
+            echo "$result_player_1" "$result_player_2"
+            exit 1
+          fi
 
-      - name: Send a Slack notification
-        if: failure() || github.event_name != 'pull_request'
-        uses: ravsamhq/notify-slack-action@v2
-        with:
-          status: ${{ job.status }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          notification_title: "{workflow} has {status_message}"
-          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
-          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Workflow run>"
-          notify_when: "failure"
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      # - name: Send a Slack notification
+      #   if: failure() || github.event_name != 'pull_request'
+      #   uses: ravsamhq/notify-slack-action@v2
+      #   with:
+      #     status: ${{ job.status }}
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     notification_title: "{workflow} has {status_message}"
+      #     message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+      #     footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Workflow run>"
+      #     notify_when: "failure"
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Generate a Diagnostic Report
-        if: failure()
-        run: |
-          curl -s localhost:4566/_localstack/diagnose | gzip -cf > diagnose.json.gz
+      # - name: Generate a Diagnostic Report
+      #   if: failure()
+      #   run: |
+      #     curl -s localhost:4566/_localstack/diagnose | gzip -cf > diagnose.json.gz
 
-      - name: Upload the Diagnostic Report
-        if: failure()
-        uses: actions/upload-artifact@v3
-        with:
-          name: diagnose.json.gz
-          path: ./diagnose.json.gz
+      # - name: Upload the Diagnostic Report
+      #   if: failure()
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: diagnose.json.gz
+      #     path: ./diagnose.json.gz

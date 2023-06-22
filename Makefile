@@ -16,7 +16,7 @@ install:
 deploy:
 	test -e node_modules || yarn; \
 	cdklocal bootstrap aws://000000000000/$$AWS_DEFAULT_REGION; \
-	cdklocal deploy
+	cdklocal deploy --outputs-file cdk_outputs.json
 
 ## Start LocalStack in detached mode
 start:
