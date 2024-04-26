@@ -71,7 +71,7 @@ Each entry represents friend state from the perspective of a player with the pla
 ### Prerequisites
 
 - An AWS account
-- Nodejs LTS installed, such as 14.x
+- Nodejs LTS installed, such as 18.x
 - Install Docker Engine
 
 ## Usage
