@@ -3,15 +3,15 @@ name: CI/CD for Friend Microservices
 on:
   push:
     branches:
-      - dev
-      - test
-      - main
+      - khanh-dev
+      - khanh-test
+      - khanh-main
 
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
-    environment: dev # Không cần approval cho dev
-    if: github.ref == 'refs/heads/dev'
+    environment: dev
+    if: github.ref == 'refs/heads/khanh-dev'
 
     steps:
       - name: Checkout code
@@ -42,9 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: test
-      # Bật manual approval trên GitHub UI cho env này
     needs: deploy-dev
-    if: github.ref == 'refs/heads/dev' # Chỉ chạy sau khi dev thành công
+    if: github.ref == 'refs/heads/khanh-dev'
 
     steps:
       - name: Checkout code
@@ -70,9 +69,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: prod
-      # Bật manual approval trên GitHub UI cho env này
     needs: deploy-test
-    if: github.ref == 'refs/heads/dev' # Chỉ chạy sau khi test thành công
+    if: github.ref == 'refs/heads/khanh-dev'
 
     steps:
       - name: Checkout code
