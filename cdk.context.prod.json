@@ -1,0 +1,13 @@
+{
+  "env": "prod",
+  "friendTableName": "friend-table-prod",
+  "queueName": "friend-queue-prod",
+  "dynamodbBillingMode": "PROVISIONED",
+  "dynamodbReadCapacity": 10,
+  "dynamodbWriteCapacity": 10,
+  "enableEncryption": true,
+  "apiThrottling": true,
+  "apiThrottlingRateLimit": 1000,
+  "apiThrottlingBurstLimit": 200,
+  "canaryDeployment": true
+}
