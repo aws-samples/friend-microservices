@@ -1,0 +1,8 @@
+{
+  "env": "dev",
+  "friendTableName": "friend-table-dev",
+  "queueName": "friend-queue-dev",
+  "dynamodbBillingMode": "PAY_PER_REQUEST",
+  "enableEncryption": false,
+  "apiThrottling": false
+}
