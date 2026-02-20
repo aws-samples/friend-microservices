@@ -103,6 +103,14 @@ dist
 #idea
 .idea*
 
+# IDE and Editor directories
+.vscode/
+.kiro/
+
+# AIDLC documentation and rule details
+.aidlc-rule-details/
+aidlc-docs/
+
 # CDK Context & Staging files
 cdk.context.json
 .cdk.staging/

@@ -80,7 +80,7 @@ Each entry represents friend state from the perspective of a player with the pla
 
 To deploy the example stack to your default AWS account/region, under project root folder, run:
 
-1. `yarn install` to install all the dependencies
+1. `pnpm install` to install all the dependencies
 2. `cdk deploy` to deploy this stack to your default AWS account/region
 
 ## Test
