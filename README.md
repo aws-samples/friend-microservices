@@ -72,7 +72,7 @@ Each entry represents friend state from the perspective of a player with the pla
 
 - An AWS account
 - Nodejs LTS installed, such as 18.x
-- Install Docker Engine
+- Install Docker Engine or Finch (Docker alternative for macOS)
 
 ## Usage
 
@@ -84,6 +84,16 @@ To deploy the example stack to your default AWS account/region, under project ro
 2. `cdk deploy` to deploy this stack to your default AWS account/region
 
 ## Test
+
+### Running Tests
+
+To run the test suite:
+
+```bash
+pnpm test
+```
+
+Note: Tests require Docker or Finch to be running for CDK stack synthesis. If using Finch instead of Docker, the test script is already configured with `CDK_DOCKER=finch`.
 
 ### Send Test Friend Action Events
 

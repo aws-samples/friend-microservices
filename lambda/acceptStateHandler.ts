@@ -66,5 +66,7 @@ async function accept(playerId: string, friendId: string, timeStamp: number) {
       console.log(`could not accept, state is not ${State.Requested}`);
       return;
     }
+    // Re-throw other errors so they can be caught by the handler
+    throw e;
   }
 }
