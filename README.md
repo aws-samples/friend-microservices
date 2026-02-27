@@ -27,6 +27,11 @@ The system uses an event-driven architecture with DynamoDB Streams and event sou
 - Four **State Handlers** react to DynamoDB Stream events via filtered event source mappings
 - A **Read API** (API Gateway + Lambda) serves friend list queries and isFriend checks
 
+![Architecture Diagram](docs/architecture.png)
+
+<details>
+<summary>Mermaid source (text version)</summary>
+
 ```mermaid
 flowchart LR
     subgraph Clients
@@ -69,6 +74,8 @@ flowchart LR
     RQH & AH & RJH & UH -.->|"onFailure"| DLQ
     FE -->|"GET /friends/{id}"| RAPI --> RH -->|"Query"| DDB
 ```
+
+</details>
 
 ## DynamoDB Tables
 
