@@ -32,13 +32,13 @@ describe("Property 1: All Lambda functions use NODEJS_22_X runtime", () => {
 // Feature: cdk-modernization, Property 3: Resource type counts are preserved after modernization
 describe("Property 3: Resource type counts are preserved after modernization", () => {
   /** Validates: Requirements 9.1 */
-  it("synthesized template has exactly 6 Lambda functions, 1 DynamoDB table, 2 SQS queues, 1 REST API", () => {
+  it("synthesized template has exactly 7 Lambda functions, 1 DynamoDB table, 2 SQS queues, 2 REST APIs", () => {
     // TableV2 synthesizes as AWS::DynamoDB::GlobalTable in CloudFormation
     const expectedCounts: [string, number][] = [
-      ["AWS::Lambda::Function", 6],
+      ["AWS::Lambda::Function", 7],
       ["AWS::DynamoDB::GlobalTable", 1],
       ["AWS::SQS::Queue", 2],
-      ["AWS::ApiGateway::RestApi", 1],
+      ["AWS::ApiGateway::RestApi", 2],
     ];
 
     fc.assert(

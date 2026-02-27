@@ -18,14 +18,14 @@ import {
   NodejsFunctionProps,
 } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Queue } from "aws-cdk-lib/aws-sqs";
-import { RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
+import { CfnOutput, RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
 import {
   DynamoEventSource,
   SqsDlq,
   SqsEventSource,
   StreamEventSourceProps,
 } from "aws-cdk-lib/aws-lambda-event-sources";
-import { LambdaRestApi } from "aws-cdk-lib/aws-apigateway";
+import { Cors, LambdaRestApi } from "aws-cdk-lib/aws-apigateway";
 
 const friendTableName = tableMap.get(Friend)!;
 const friendPk = keyMap.get(Friend)!.get(Keys.PK)!;
@@ -185,9 +185,23 @@ export class FriendMicroservicesStack extends Stack {
       })
     );
 
+    const writeHandler = new NodejsFunction(this, "writeHandler", {
+      entry: "lambda/writeHandler.ts",
+      ...functionProp,
+      environment: {
+        QUEUE_URL: frontQueue.queueUrl,
+      },
+    });
+    frontQueue.grantSendMessages(writeHandler);
+
     const readAPI = new LambdaRestApi(this, "readAPI", {
       handler: readHandler,
       proxy: false,
+      defaultCorsPreflightOptions: {
+        allowOrigins: Cors.ALL_ORIGINS,
+        allowMethods: Cors.ALL_METHODS,
+        allowHeaders: ["Content-Type"],
+      },
     });
 
     const friends = readAPI.root.addResource("friends");
@@ -197,5 +211,26 @@ export class FriendMicroservicesStack extends Stack {
       .addResource("{playerId}")
       .addResource("{friendId}")
       .addMethod("GET");
+
+    const writeAPI = new LambdaRestApi(this, "writeAPI", {
+      handler: writeHandler,
+      proxy: false,
+      defaultCorsPreflightOptions: {
+        allowOrigins: Cors.ALL_ORIGINS,
+        allowMethods: Cors.ALL_METHODS,
+        allowHeaders: ["Content-Type"],
+      },
+    });
+
+    writeAPI.root.addResource("friends").addMethod("POST");
+
+    new CfnOutput(this, "ReadAPIUrl", {
+      value: readAPI.url,
+      description: "Read API endpoint",
+    });
+    new CfnOutput(this, "WriteAPIUrl", {
+      value: writeAPI.url,
+      description: "Write API endpoint",
+    });
   }
 }

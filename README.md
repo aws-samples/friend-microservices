@@ -19,11 +19,56 @@ The sample solution contains AWS Lambda Functions, Amazon DynamoDB Tables, Amazo
 
 ## Architecture
 
-As Shown in the diagram below, there are three Lambda functions (though State Handlers are made of four lambda functions), a single SQS queues in front and a DynamoDB table.\
-`Front Queue` intakes all friend actions from game backend services\
-Each `State Handler` handles different state, and triggered though different Event Source Mapping Filters\
-There also is an API Gateway and a Lambda Function for reading data\
-![alt text](./docs/FriendsMicroservices.png)
+The system uses an event-driven architecture with DynamoDB Streams and event source mapping filters to handle friend state transitions asynchronously.
+
+- A **Write API** (API Gateway + Lambda) accepts friend actions from the web UI and forwards them to SQS
+- Game backend services can also send messages directly to the **Front Queue** (SQS)
+- The **frontHandler** processes SQS messages and writes to DynamoDB
+- Four **State Handlers** react to DynamoDB Stream events via filtered event source mappings
+- A **Read API** (API Gateway + Lambda) serves friend list queries and isFriend checks
+
+```mermaid
+flowchart LR
+    subgraph Clients
+        FE["🌐 Web UI"]
+        BE["🎮 Game Backend"]
+    end
+
+    subgraph Write Path
+        WAPI["Write API<br/>(API Gateway)"]
+        WH["writeHandler"]
+        SQS["frontQueue<br/>(SQS)"]
+        FH["frontHandler"]
+    end
+
+    subgraph Storage
+        DDB["Friend Table<br/>(DynamoDB)"]
+        STREAM["DynamoDB Stream"]
+    end
+
+    subgraph "State Handlers"
+        RQH["requestStateHandler<br/>INSERT + Requested"]
+        AH["acceptStateHandler<br/>MODIFY Pending→Friends"]
+        RJH["rejectStateHandler<br/>REMOVE Pending"]
+        UH["unfriendStateHandler<br/>REMOVE Friends"]
+    end
+
+    subgraph Read Path
+        RAPI["Read API<br/>(API Gateway)"]
+        RH["readHandler"]
+    end
+
+    DLQ["DLQ (SQS)"]
+
+    FE -->|"POST /friends"| WAPI
+    BE -->|"SendMessage"| SQS
+    WAPI --> WH --> SQS -->|"Event Source"| FH
+    FH -->|"Write"| DDB --> STREAM
+    STREAM -->|"Filtered"| RQH & AH & RJH & UH
+    RQH & AH & RJH & UH -->|"Write"| DDB
+    RQH & AH & RJH & UH -.->|"onFailure"| DLQ
+    FE -->|"GET /friends/{id}"| RAPI --> RH -->|"Query"| DDB
+```
 
 ## DynamoDB Tables
 
@@ -71,7 +116,7 @@ Each entry represents friend state from the perspective of a player with the pla
 ### Prerequisites
 
 - An AWS account
-- Nodejs LTS installed, such as 18.x
+- Node.js 22.x or later
 - Install Docker Engine or Finch (Docker alternative for macOS)
 
 ## Usage
@@ -95,10 +140,21 @@ pnpm test
 
 Note: Tests require Docker or Finch to be running for CDK stack synthesis. If using Finch instead of Docker, the test script is already configured with `CDK_DOCKER=finch`.
 
+### Web UI
+
+After deploying, open `frontend/index.html` in your browser. Paste the Read API and Write API URLs (shown in the `cdk deploy` output) into the configuration panel, then use the two player panels to test friend workflows interactively.
+
 ### Send Test Friend Action Events
 
-Since front SQS is Standard queue, you need to send test messages three times separately, to get to the final state.
-With AWS CLI:
+You can send friend actions via the Write API:
+
+```bash
+curl -X POST 'https://<WRITE API URL>/friends' \
+  -H 'Content-Type: application/json' \
+  -d '{"player_id":"player1","friend_id":"player2","friend_action":"Request"}'
+```
+
+Or send directly to SQS (for backend-to-backend scenarios):
 
 ```
 aws sqs send-message-batch --queue-url <QUEUE URL> \

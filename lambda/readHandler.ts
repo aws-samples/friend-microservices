@@ -14,6 +14,12 @@ const friendTableName = tableMap.get(Friend)!;
 const friendPk = keyMap.get(Friend)!.get(Keys.PK)!;
 const friendSk = keyMap.get(Friend)!.get(Keys.SK)!;
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "GET,OPTIONS",
+};
+
 export const handler: APIGatewayProxyHandler = async ({
   httpMethod,
   path,
@@ -36,6 +42,7 @@ export const handler: APIGatewayProxyHandler = async ({
     const result = await db.send(new GetCommand(getParam));
     return {
       statusCode: 200,
+      headers: CORS_HEADERS,
       body: result.Item!["state"],
     };
   }
@@ -53,6 +60,7 @@ export const handler: APIGatewayProxyHandler = async ({
   const result = await db.send(new QueryCommand(queryParam));
   return {
     statusCode: 200,
+    headers: CORS_HEADERS,
     body: JSON.stringify(result.Items!),
   };
 };
