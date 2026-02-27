@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Friend Microservices — Kiro</title>
+  <style>
+    :root {
+      --bg: #0e0b1a;
+      --surface: #1a1528;
+      --surface-raised: #231e33;
+      --surface-hover: #2c2640;
+      --border: #352f4a;
+      --border-subtle: #2a2540;
+      --text: #e8e4f0;
+      --text-secondary: #9d95b0;
+      --text-muted: #6e6585;
+      --accent: #a78bfa;
+      --accent-hover: #c4b5fd;
+      --accent-dim: rgba(167,139,250,0.12);
+      --green: #34d399;
+      --green-dim: rgba(52,211,153,0.12);
+      --red: #f87171;
+      --red-dim: rgba(248,113,113,0.12);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251,191,36,0.12);
+      --blue: #60a5fa;
+      --blue-dim: rgba(96,165,250,0.12);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+    .topbar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 52px; display: flex; align-items: center; gap: 12px;
+    }
+    .topbar .logo { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+    .topbar .dot {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: linear-gradient(135deg, #a78bfa, #7c3aed);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 14px; color: #fff;
+    }
+    .topbar .sep { color: var(--text-muted); font-size: 18px; font-weight: 300; }
+    .topbar .crumb { color: var(--text-secondary); font-size: 13px; }
+
+    .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .page-header { margin-bottom: 24px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+    .page-header p { color: var(--text-secondary); margin-top: 4px; font-size: 13px; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); margin-bottom: 16px; overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 20px; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-header h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+    .card-body { padding: 20px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-graph { display: grid; grid-template-columns: 420px 1fr; gap: 16px; align-items: start; }
+
+    .field label {
+      display: block; font-size: 11px; font-weight: 600;
+      color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .field input, .field select {
+      width: 100%; padding: 8px 12px; font-size: 13px; font-family: var(--mono);
+      background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--text); transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none; -webkit-appearance: none;
+    }
+    .field select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239d95b0'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; cursor: pointer;
+    }
+    .field select option { background: var(--surface-raised); color: var(--text); }
+    .field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+    .field input::placeholder { color: var(--text-muted); }
+
+    .action-bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+    .action-bar .field { min-width: 120px; flex: 1; }
+    .action-arrow { color: var(--text-muted); font-size: 20px; padding-bottom: 6px; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 8px 18px; font-size: 13px; font-weight: 600; font-family: var(--font);
+      border: 1px solid transparent; border-radius: 999px; cursor: pointer;
+      transition: all 0.15s; white-space: nowrap; line-height: 1;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn-accent { background: var(--accent); color: #0e0b1a; border-color: var(--accent); }
+    .btn-accent:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+    .btn-ghost:hover { border-color: var(--text-secondary); color: var(--text); }
+    .btn-sm { padding: 4px 12px; font-size: 12px; }
+    .btn-send { padding-bottom: 8px; align-self: flex-end; }
+
+    .status {
+      padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13px;
+      background: var(--surface-raised); color: var(--text-muted); min-height: 36px;
+      border-left: 3px solid var(--border);
+    }
+    .status.ok { background: var(--green-dim); color: var(--green); border-left-color: var(--green); }
+    .status.err { background: var(--red-dim); color: var(--red); border-left-color: var(--red); }
+    .status.info { background: var(--accent-dim); color: var(--accent); border-left-color: var(--accent); }
+
+    /* Tabs */
+    .tab-row { display: flex; gap: 4px; }
+    .tab-btn {
+      padding: 4px 14px; font-size: 12px; font-weight: 600; font-family: var(--font);
+      background: transparent; color: var(--text-muted); border: 1px solid transparent;
+      border-radius: 999px; cursor: pointer; transition: all 0.15s;
+    }
+    .tab-btn:hover { color: var(--text-secondary); }
+    .tab-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+    /* Table */
+    .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .tbl th {
+      text-align: left; padding: 8px 16px; font-size: 11px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px;
+      border-bottom: 1px solid var(--border); background: var(--surface-raised);
+    }
+    .tbl td { padding: 10px 16px; border-bottom: 1px solid var(--border-subtle); }
+    .tbl tbody tr:hover { background: var(--surface-hover); }
+    .empty { text-align: center; color: var(--text-muted); padding: 28px 16px; font-style: italic; }
+
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .tag-Requested { background: var(--amber-dim); color: var(--amber); }
+    .tag-Pending { background: var(--blue-dim); color: var(--blue); }
+    .tag-Friends { background: var(--green-dim); color: var(--green); }
+    .tag-default { background: var(--accent-dim); color: var(--accent); }
+
+    .log {
+      max-height: 180px; overflow-y: auto; font-family: var(--mono);
+      font-size: 12px; line-height: 1.8; padding: 12px 16px; color: var(--text-secondary);
+    }
+    .log .lt { color: var(--text-muted); margin-right: 8px; }
+    .log .lok { color: var(--green); }
+    .log .lerr { color: var(--red); }
+
+    /* Graph */
+    #graphSvg text { font-family: var(--font); }
+
+    @media (max-width: 900px) {
+      .grid-2, .grid-graph { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+<body>
+
+  <nav class="topbar">
+    <div class="logo"><div class="dot">👥</div><span>Friend Microservices</span></div>
+    <span class="sep">/</span>
+    <span class="crumb">Console</span>
+  </nav>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>Friend Management</h1>
+      <p>Event-driven state machine — DynamoDB Streams · SQS · Lambda</p>
+    </div>
+
+    <!-- Config -->
+    <div class="card">
+      <div class="card-header"><h2>API endpoints</h2></div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div class="field"><label for="readUrl">Read API</label><input id="readUrl" spellcheck="false"></div>
+          <div class="field"><label for="writeUrl">Write API</label><input id="writeUrl" spellcheck="false"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="card">
+      <div class="card-header"><h2>Send action</h2></div>
+      <div class="card-body">
+        <div class="action-bar">
+          <div class="field">
+            <label for="fromPlayer">From</label>
+            <select id="fromPlayer"></select>
+          </div>
+          <div class="action-arrow">→</div>
+          <div class="field">
+            <label for="actionType">Action</label>
+            <select id="actionType">
+              <option value="Request">Request</option>
+              <option value="Accept">Accept</option>
+              <option value="Reject">Reject</option>
+              <option value="Unfriend">Unfriend</option>
+            </select>
+          </div>
+          <div class="action-arrow">→</div>
+          <div class="field">
+            <label for="toPlayer">To</label>
+            <select id="toPlayer"></select>
+          </div>
+          <button class="btn btn-accent btn-send" onclick="sendAction()">Send</button>
+          <button class="btn btn-ghost" onclick="refreshAll()">↻ Refresh all</button>
+        </div>
+        <div id="actionStatus" class="status" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <!-- Graph + Tables side by side -->
+    <div class="grid-graph">
+      <!-- Friend graph -->
+      <div class="card">
+        <div class="card-header"><h2>Friend graph</h2></div>
+        <div class="card-body" style="padding:12px;display:flex;justify-content:center">
+          <svg id="graphSvg" width="420" height="380" viewBox="0 0 420 380"></svg>
+        </div>
+      </div>
+
+      <!-- Player tables -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Player data</h2>
+          <div class="tab-row" id="playerTabs"></div>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div id="playerTableArea"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Activity</h2>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('logBody').innerHTML=''">Clear</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div id="logBody" class="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Config ──
+    const PLAYERS = ['alice', 'bob', 'charlie', 'diana'];
+    const COLORS = { Requested: '#fbbf24', Pending: '#60a5fa', Friends: '#34d399' };
+    const DEFAULTS = {
+      readUrl:  'https://tvhv93ouic.execute-api.us-east-1.amazonaws.com/prod/',
+      writeUrl: 'https://wm00yvgnah.execute-api.us-east-1.amazonaws.com/prod/'
+    };
+
+    // ── State ──
+    const friendData = {}; // { alice: [{friend_id, state, last_updated}, ...], ... }
+    let activeTab = PLAYERS[0];
+
+    // ── Init ──
+    const readEl = document.getElementById('readUrl');
+    const writeEl = document.getElementById('writeUrl');
+    readEl.value = localStorage.getItem('fm_readUrl') || DEFAULTS.readUrl;
+    writeEl.value = localStorage.getItem('fm_writeUrl') || DEFAULTS.writeUrl;
+    readEl.addEventListener('input', () => localStorage.setItem('fm_readUrl', readEl.value));
+    writeEl.addEventListener('input', () => localStorage.setItem('fm_writeUrl', writeEl.value));
+
+    const getReadUrl = () => readEl.value.replace(/\/+$/, '');
+    const getWriteUrl = () => writeEl.value.replace(/\/+$/, '');
+
+    // Populate dropdowns
+    ['fromPlayer', 'toPlayer'].forEach(id => {
+      const sel = document.getElementById(id);
+      PLAYERS.forEach((p, i) => {
+        const o = document.createElement('option');
+        o.value = p; o.textContent = p.charAt(0).toUpperCase() + p.slice(1);
+        if (id === 'toPlayer' && i === 1) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
+
+    // Build tabs
+    const tabRow = document.getElementById('playerTabs');
+    PLAYERS.forEach(p => {
+      const b = document.createElement('button');
+      b.className = 'tab-btn' + (p === activeTab ? ' active' : '');
+      b.textContent = p.charAt(0).toUpperCase() + p.slice(1);
+      b.onclick = () => { activeTab = p; renderTabs(); renderTable(); };
+      tabRow.appendChild(b);
+    });
+
+    // ── Helpers ──
+    function log(msg, cls) {
+      const el = document.getElementById('logBody');
+      const t = new Date().toLocaleTimeString();
+      el.innerHTML = `<div><span class="lt">${t}</span><span class="${cls||''}">${msg}</span></div>` + el.innerHTML;
+    }
+
+    function setStatus(msg, cls) {
+      const el = document.getElementById('actionStatus');
+      el.textContent = msg;
+      el.className = 'status' + (cls ? ' ' + cls : '');
+    }
+
+    function renderTabs() {
+      tabRow.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.className = 'tab-btn' + (PLAYERS[i] === activeTab ? ' active' : '');
+      });
+    }
+
+    function renderTable() {
+      const area = document.getElementById('playerTableArea');
+      const items = friendData[activeTab] || [];
+      if (!items.length) {
+        area.innerHTML = '<table class="tbl"><tbody><tr><td class="empty">No data — hit Refresh all</td></tr></tbody></table>';
+        return;
+      }
+      let html = '<table class="tbl"><thead><tr><th>Friend</th><th>State</th><th>Updated</th></tr></thead><tbody>';
+      items.forEach(f => {
+        const s = f.state || 'Unknown';
+        const tc = COLORS[s] ? 'tag-' + s : 'tag-default';
+        const ts = f.last_updated ? new Date(f.last_updated).toLocaleString() : '—';
+        html += `<tr><td>${f.friend_id}</td><td><span class="tag ${tc}">${s}</span></td><td style="color:var(--text-muted)">${ts}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      area.innerHTML = html;
+    }
+
+    // ── Graph ──
+    function renderGraph() {
+      const svg = document.getElementById('graphSvg');
+      const W = 420, H = 380, R = 130, cx = W / 2, cy = H / 2;
+      let out = '<defs><marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="var(--text-muted)"/></marker></defs>';
+
+      // Node positions in a circle
+      const pos = PLAYERS.map((_, i) => {
+        const a = -Math.PI / 2 + (2 * Math.PI * i) / PLAYERS.length;
+        return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
+      });
+
+      // Edges — collect unique pairs
+      const edges = new Map(); // "a->b" => state
+      PLAYERS.forEach(p => {
+        (friendData[p] || []).forEach(f => {
+          const key = p + '->' + f.friend_id;
+          edges.set(key, f.state);
+        });
+      });
+
+      edges.forEach((state, key) => {
+        const [from, to] = key.split('->');
+        const fi = PLAYERS.indexOf(from), ti = PLAYERS.indexOf(to);
+        if (fi < 0 || ti < 0) return;
+        const p1 = pos[fi], p2 = pos[ti];
+        const color = COLORS[state] || '#6e6585';
+
+        // Offset for bidirectional edges
+        const reverse = edges.has(to + '->' + from);
+        const dx = p2.x - p1.x, dy = p2.y - p1.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const nx = -dy / len, ny = dx / len;
+        const off = reverse ? 6 : 0;
+
+        // Shorten to not overlap node circles
+        const nodeR = 28;
+        const sx = p1.x + (dx / len) * nodeR + nx * off;
+        const sy = p1.y + (dy / len) * nodeR + ny * off;
+        const ex = p2.x - (dx / len) * (nodeR + 8) + nx * off;
+        const ey = p2.y - (dy / len) * (nodeR + 8) + ny * off;
+
+        out += `<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="${color}" stroke-width="2" marker-end="url(#ah)" opacity="0.8"/>`;
+
+        // Label at midpoint
+        const mx = (sx + ex) / 2 + nx * 10, my = (sy + ey) / 2 + ny * 10;
+        out += `<text x="${mx}" y="${my}" fill="${color}" font-size="10" font-weight="600" text-anchor="middle" dominant-baseline="middle">${state}</text>`;
+      });
+
+      // Nodes
+      PLAYERS.forEach((p, i) => {
+        const { x, y } = pos[i];
+        const count = (friendData[p] || []).filter(f => f.state === 'Friends').length;
+        out += `<circle cx="${x}" cy="${y}" r="28" fill="var(--surface-raised)" stroke="var(--accent)" stroke-width="2"/>`;
+        out += `<text x="${x}" y="${y - 4}" fill="var(--text)" font-size="13" font-weight="700" text-anchor="middle" dominant-baseline="middle">${p.charAt(0).toUpperCase() + p.slice(1)}</text>`;
+        out += `<text x="${x}" y="${y + 12}" fill="var(--text-muted)" font-size="10" text-anchor="middle">${count} ♥</text>`;
+      });
+
+      svg.innerHTML = out;
+    }
+
+    // ── API calls ──
+    async function sendAction() {
+      const from = document.getElementById('fromPlayer').value;
+      const to = document.getElementById('toPlayer').value;
+      const action = document.getElementById('actionType').value;
+      if (from === to) { setStatus('From and To must be different', 'err'); return; }
+      setStatus(`Sending ${action}…`, 'info');
+      try {
+        const res = await fetch(getWriteUrl() + '/friends', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player_id: from, friend_id: to, friend_action: action })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        setStatus(`${action} sent ✓`, 'ok');
+        log(`${from} → ${action} → ${to}`, 'lok');
+        setTimeout(refreshAll, 1500);
+      } catch (e) {
+        setStatus(e.message, 'err');
+        log(`Error: ${e.message}`, 'lerr');
+      }
+    }
+
+    async function loadPlayer(p) {
+      try {
+        const res = await fetch(getReadUrl() + '/friends/' + encodeURIComponent(p));
+        friendData[p] = await res.json();
+        if (!Array.isArray(friendData[p])) friendData[p] = [];
+      } catch (e) {
+        friendData[p] = [];
+      }
+    }
+
+    async function refreshAll() {
+      await Promise.all(PLAYERS.map(loadPlayer));
+      renderTable();
+      renderGraph();
+    }
+
+    // ── Boot ──
+    renderTable();
+    renderGraph();
+    refreshAll();
+  </script>
+</body>
+</html>
