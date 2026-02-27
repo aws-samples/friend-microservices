@@ -1,8 +1,8 @@
 import {
   AttributeType,
-  BillingMode,
+  Billing,
   StreamViewType,
-  Table,
+  TableV2,
 } from "aws-cdk-lib/aws-dynamodb";
 import { Construct } from "constructs";
 import {
@@ -36,7 +36,7 @@ export class FriendMicroservicesStack extends Stack {
     super(scope, id, props);
 
     const functionProp: NodejsFunctionProps = {
-      runtime: Runtime.NODEJS_18_X,
+      runtime: Runtime.NODEJS_22_X,
       memorySize: 1024,
     };
 
@@ -74,7 +74,7 @@ export class FriendMicroservicesStack extends Stack {
       ...functionProp,
     });
 
-    const friendTable = new Table(this, "Friend", {
+    const friendTable = new TableV2(this, "Friend", {
       tableName: friendTableName,
       partitionKey: {
         name: friendPk,
@@ -84,8 +84,8 @@ export class FriendMicroservicesStack extends Stack {
         name: friendSk,
         type: AttributeType.STRING,
       },
-      billingMode: BillingMode.PAY_PER_REQUEST,
-      stream: StreamViewType.NEW_AND_OLD_IMAGES,
+      billing: Billing.onDemand(),
+      dynamoStream: StreamViewType.NEW_AND_OLD_IMAGES,
       removalPolicy: RemovalPolicy.DESTROY,
     });
 

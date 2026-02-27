@@ -1,6 +1,6 @@
-import * as AWS from "aws-sdk";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import Aigle from "aigle";
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { Friend, State } from "../models/friend";
 import { keyMap, Keys, tableMap } from "../models/tableDecorator";
 import {
@@ -23,7 +23,8 @@ enum FriendAction {
   Unfriend = "Unfriend",
 }
 
-const db = new AWS.DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const db = DynamoDBDocumentClient.from(client);
 
 const friendTableName = tableMap.get(Friend)!;
 const friendPk = keyMap.get(Friend)!.get(Keys.PK)!;
@@ -81,7 +82,7 @@ async function request(
   friend_id: string,
   timeStamp: number
 ) {
-  const requestParam: DocumentClient.PutItemInput = {
+  const requestParam = {
     TableName: friendTableName,
     Item: {
       [friendPk]: player_id,
@@ -96,7 +97,7 @@ async function request(
     },
   };
   try {
-    await db.put(requestParam).promise();
+    await db.send(new PutCommand(requestParam));
   } catch (e: any) {
     if (e.name == "ConditionalCheckFailedException") {
       console.log(
@@ -109,7 +110,7 @@ async function request(
 }
 
 async function accept(player_id: string, friend_id: string, timeStamp: number) {
-  const acceptParam: DocumentClient.UpdateItemInput = {
+  const acceptParam = {
     TableName: friendTableName,
     Key: {
       [friendPk]: player_id,
@@ -128,7 +129,7 @@ async function accept(player_id: string, friend_id: string, timeStamp: number) {
     },
   };
   try {
-    await db.update(acceptParam).promise();
+    await db.send(new UpdateCommand(acceptParam));
   } catch (e: any) {
     if (e.name == "ConditionalCheckFailedException") {
       console.log(`could not accept, state is not ${State.Pending}`);
@@ -139,7 +140,7 @@ async function accept(player_id: string, friend_id: string, timeStamp: number) {
 }
 
 async function reject(player_id: string, friend_id: string) {
-  const rejectParam: DocumentClient.DeleteItemInput = {
+  const rejectParam = {
     TableName: friendTableName,
     Key: {
       [friendPk]: player_id,
@@ -154,7 +155,7 @@ async function reject(player_id: string, friend_id: string) {
     },
   };
   try {
-    await db.delete(rejectParam).promise();
+    await db.send(new DeleteCommand(rejectParam));
   } catch (e: any) {
     if (e.name == "ConditionalCheckFailedException") {
       console.log(`could not reject, state is not ${State.Pending}`);
@@ -165,7 +166,7 @@ async function reject(player_id: string, friend_id: string) {
 }
 
 async function unfriend(player_id: string, friend_id: string) {
-  const unfriendParam: DocumentClient.DeleteItemInput = {
+  const unfriendParam = {
     TableName: friendTableName,
     Key: {
       [friendPk]: player_id,
@@ -180,7 +181,7 @@ async function unfriend(player_id: string, friend_id: string) {
     },
   };
   try {
-    await db.delete(unfriendParam).promise();
+    await db.send(new DeleteCommand(unfriendParam));
   } catch (e: any) {
     if (e.name == "ConditionalCheckFailedException") {
       console.log(`could not unfriend, state is not ${State.Friends}`);

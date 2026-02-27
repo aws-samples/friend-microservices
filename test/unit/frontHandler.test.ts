@@ -1,30 +1,21 @@
 import { handler } from "../../lambda/frontHandler";
 import { SQSEvent, SQSBatchResponse } from "aws-lambda";
-import * as AWS from "aws-sdk";
 
-// Mock AWS SDK
-jest.mock("aws-sdk", () => {
-  const mockPut = jest.fn().mockReturnValue({ promise: jest.fn() });
-  const mockUpdate = jest.fn().mockReturnValue({ promise: jest.fn() });
-  const mockDelete = jest.fn().mockReturnValue({ promise: jest.fn() });
-
-  return {
-    DynamoDB: {
-      DocumentClient: jest.fn(() => ({
-        put: mockPut,
-        update: mockUpdate,
-        delete: mockDelete,
-      })),
-    },
-  };
-});
+// Mock AWS SDK v3
+const mockSend = jest.fn();
+jest.mock("@aws-sdk/client-dynamodb", () => ({
+  DynamoDBClient: jest.fn(() => ({})),
+}));
+jest.mock("@aws-sdk/lib-dynamodb", () => ({
+  DynamoDBDocumentClient: { from: jest.fn(() => ({ send: (...args: any[]) => mockSend(...args) })) },
+  PutCommand: jest.fn((params: any) => ({ ...params, _type: "Put" })),
+  UpdateCommand: jest.fn((params: any) => ({ ...params, _type: "Update" })),
+  DeleteCommand: jest.fn((params: any) => ({ ...params, _type: "Delete" })),
+}));
 
 describe("frontHandler", () => {
-  let mockDb: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    mockDb = new AWS.DynamoDB.DocumentClient();
   });
 
   describe("Request action", () => {
@@ -49,14 +40,12 @@ describe("frontHandler", () => {
         ],
       };
 
-      mockDb.put.mockReturnValue({
-        promise: jest.fn().mockResolvedValue({}),
-      });
+      mockSend.mockResolvedValue({});
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 
       expect(result.batchItemFailures).toHaveLength(0);
-      expect(mockDb.put).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           TableName: "Friend",
           Item: expect.objectContaining({
@@ -91,9 +80,7 @@ describe("frontHandler", () => {
 
       const error: any = new Error("Conditional check failed");
       error.name = "ConditionalCheckFailedException";
-      mockDb.put.mockReturnValue({
-        promise: jest.fn().mockRejectedValue(error),
-      });
+      mockSend.mockRejectedValue(error);
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 
@@ -123,9 +110,7 @@ describe("frontHandler", () => {
 
       const error: any = new Error("Conditional check failed");
       error.name = "ConditionalCheckFailedException";
-      mockDb.put.mockReturnValue({
-        promise: jest.fn().mockRejectedValue(error),
-      });
+      mockSend.mockRejectedValue(error);
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 
@@ -155,14 +140,12 @@ describe("frontHandler", () => {
         ],
       };
 
-      mockDb.update.mockReturnValue({
-        promise: jest.fn().mockResolvedValue({}),
-      });
+      mockSend.mockResolvedValue({});
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 
       expect(result.batchItemFailures).toHaveLength(0);
-      expect(mockDb.update).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           TableName: "Friend",
           Key: {
@@ -197,9 +180,7 @@ describe("frontHandler", () => {
 
       const error: any = new Error("Conditional check failed");
       error.name = "ConditionalCheckFailedException";
-      mockDb.update.mockReturnValue({
-        promise: jest.fn().mockRejectedValue(error),
-      });
+      mockSend.mockRejectedValue(error);
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 
@@ -229,14 +210,12 @@ describe("frontHandler", () => {
         ],
       };
 
-      mockDb.delete.mockReturnValue({
-        promise: jest.fn().mockResolvedValue({}),
-      });
+      mockSend.mockResolvedValue({});
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 
       expect(result.batchItemFailures).toHaveLength(0);
-      expect(mockDb.delete).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           TableName: "Friend",
           Key: {
@@ -271,14 +250,12 @@ describe("frontHandler", () => {
         ],
       };
 
-      mockDb.delete.mockReturnValue({
-        promise: jest.fn().mockResolvedValue({}),
-      });
+      mockSend.mockResolvedValue({});
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 
       expect(result.batchItemFailures).toHaveLength(0);
-      expect(mockDb.delete).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           TableName: "Friend",
           Key: {
@@ -313,9 +290,7 @@ describe("frontHandler", () => {
         ],
       };
 
-      mockDb.put.mockReturnValue({
-        promise: jest.fn().mockRejectedValue(new Error("DynamoDB error")),
-      });
+      mockSend.mockRejectedValue(new Error("DynamoDB error"));
 
       const result = (await handler(event, {} as any, {} as any)) as SQSBatchResponse;
 

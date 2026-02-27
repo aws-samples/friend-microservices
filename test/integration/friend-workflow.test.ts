@@ -1,47 +1,36 @@
-import * as AWS from "aws-sdk";
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 /**
  * Integration tests for friend workflow
  * These tests verify the complete friend request/accept/reject/unfriend flows
- * 
+ *
  * Note: These tests require a real DynamoDB table or DynamoDB Local
  * Set TABLE_NAME environment variable to run these tests
  */
 
 describe("Friend Workflow Integration Tests", () => {
-  let db: DocumentClient;
+  let db: DynamoDBDocumentClient;
   const tableName = process.env.TABLE_NAME || "Friend";
 
   beforeAll(() => {
-    // Configure AWS SDK for local testing if needed
-    if (process.env.DYNAMODB_ENDPOINT) {
-      db = new AWS.DynamoDB.DocumentClient({
-        endpoint: process.env.DYNAMODB_ENDPOINT,
-        region: "us-east-1",
-      });
-    } else {
-      db = new AWS.DynamoDB.DocumentClient();
-    }
+    const clientConfig = process.env.DYNAMODB_ENDPOINT
+      ? { endpoint: process.env.DYNAMODB_ENDPOINT, region: "us-east-1" }
+      : {};
+    db = DynamoDBDocumentClient.from(new DynamoDBClient(clientConfig));
   });
 
   afterEach(async () => {
-    // Clean up test data
     if (process.env.TABLE_NAME) {
       const testPlayers = ["test-player1", "test-player2", "test-player3"];
       for (const player of testPlayers) {
         for (const friend of testPlayers) {
           if (player !== friend) {
             try {
-              await db
-                .delete({
-                  TableName: tableName,
-                  Key: {
-                    player_id: player,
-                    friend_id: friend,
-                  },
-                })
-                .promise();
+              await db.send(new DeleteCommand({
+                TableName: tableName,
+                Key: { player_id: player, friend_id: friend },
+              }));
             } catch (e) {
               // Ignore errors during cleanup
             }
@@ -61,29 +50,20 @@ describe("Friend Workflow Integration Tests", () => {
       const player1 = "test-player1";
       const player2 = "test-player2";
 
-      // Create request
-      await db
-        .put({
-          TableName: tableName,
-          Item: {
-            player_id: player1,
-            friend_id: player2,
-            state: "Requested",
-            last_updated: Date.now(),
-          },
-        })
-        .promise();
+      await db.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          player_id: player1,
+          friend_id: player2,
+          state: "Requested",
+          last_updated: Date.now(),
+        },
+      }));
 
-      // Verify request exists
-      const result = await db
-        .get({
-          TableName: tableName,
-          Key: {
-            player_id: player1,
-            friend_id: player2,
-          },
-        })
-        .promise();
+      const result = await db.send(new GetCommand({
+        TableName: tableName,
+        Key: { player_id: player1, friend_id: player2 },
+      }));
 
       expect(result.Item).toBeDefined();
       expect(result.Item!.state).toBe("Requested");
@@ -98,29 +78,20 @@ describe("Friend Workflow Integration Tests", () => {
       const player1 = "test-player1";
       const player2 = "test-player2";
 
-      // Simulate requestStateHandler creating pending request
-      await db
-        .put({
-          TableName: tableName,
-          Item: {
-            player_id: player2,
-            friend_id: player1,
-            state: "Pending",
-            last_updated: Date.now(),
-          },
-        })
-        .promise();
+      await db.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          player_id: player2,
+          friend_id: player1,
+          state: "Pending",
+          last_updated: Date.now(),
+        },
+      }));
 
-      // Verify pending request exists
-      const result = await db
-        .get({
-          TableName: tableName,
-          Key: {
-            player_id: player2,
-            friend_id: player1,
-          },
-        })
-        .promise();
+      const result = await db.send(new GetCommand({
+        TableName: tableName,
+        Key: { player_id: player2, friend_id: player1 },
+      }));
 
       expect(result.Item).toBeDefined();
       expect(result.Item!.state).toBe("Pending");
@@ -137,51 +108,36 @@ describe("Friend Workflow Integration Tests", () => {
       const player1 = "test-player1";
       const player2 = "test-player2";
 
-      // Setup: Create pending request
-      await db
-        .put({
-          TableName: tableName,
-          Item: {
-            player_id: player2,
-            friend_id: player1,
-            state: "Pending",
-            last_updated: Date.now(),
-          },
-        })
-        .promise();
+      await db.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          player_id: player2,
+          friend_id: player1,
+          state: "Pending",
+          last_updated: Date.now(),
+        },
+      }));
 
-      // Accept request
-      await db
-        .update({
-          TableName: tableName,
-          Key: {
-            player_id: player2,
-            friend_id: player1,
-          },
-          UpdateExpression: "SET #state = :friends, #last_updated = :timestamp",
-          ConditionExpression: "#state = :pending",
-          ExpressionAttributeNames: {
-            "#state": "state",
-            "#last_updated": "last_updated",
-          },
-          ExpressionAttributeValues: {
-            ":pending": "Pending",
-            ":friends": "Friends",
-            ":timestamp": Date.now(),
-          },
-        })
-        .promise();
+      await db.send(new UpdateCommand({
+        TableName: tableName,
+        Key: { player_id: player2, friend_id: player1 },
+        UpdateExpression: "SET #state = :friends, #last_updated = :timestamp",
+        ConditionExpression: "#state = :pending",
+        ExpressionAttributeNames: {
+          "#state": "state",
+          "#last_updated": "last_updated",
+        },
+        ExpressionAttributeValues: {
+          ":pending": "Pending",
+          ":friends": "Friends",
+          ":timestamp": Date.now(),
+        },
+      }));
 
-      // Verify state changed to Friends
-      const result = await db
-        .get({
-          TableName: tableName,
-          Key: {
-            player_id: player2,
-            friend_id: player1,
-          },
-        })
-        .promise();
+      const result = await db.send(new GetCommand({
+        TableName: tableName,
+        Key: { player_id: player2, friend_id: player1 },
+      }));
 
       expect(result.Item).toBeDefined();
       expect(result.Item!.state).toBe("Friends");
@@ -198,47 +154,28 @@ describe("Friend Workflow Integration Tests", () => {
       const player1 = "test-player1";
       const player2 = "test-player2";
 
-      // Setup: Create pending request
-      await db
-        .put({
-          TableName: tableName,
-          Item: {
-            player_id: player2,
-            friend_id: player1,
-            state: "Pending",
-            last_updated: Date.now(),
-          },
-        })
-        .promise();
+      await db.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          player_id: player2,
+          friend_id: player1,
+          state: "Pending",
+          last_updated: Date.now(),
+        },
+      }));
 
-      // Reject request
-      await db
-        .delete({
-          TableName: tableName,
-          Key: {
-            player_id: player2,
-            friend_id: player1,
-          },
-          ConditionExpression: "#state = :pending",
-          ExpressionAttributeNames: {
-            "#state": "state",
-          },
-          ExpressionAttributeValues: {
-            ":pending": "Pending",
-          },
-        })
-        .promise();
+      await db.send(new DeleteCommand({
+        TableName: tableName,
+        Key: { player_id: player2, friend_id: player1 },
+        ConditionExpression: "#state = :pending",
+        ExpressionAttributeNames: { "#state": "state" },
+        ExpressionAttributeValues: { ":pending": "Pending" },
+      }));
 
-      // Verify item deleted
-      const result = await db
-        .get({
-          TableName: tableName,
-          Key: {
-            player_id: player2,
-            friend_id: player1,
-          },
-        })
-        .promise();
+      const result = await db.send(new GetCommand({
+        TableName: tableName,
+        Key: { player_id: player2, friend_id: player1 },
+      }));
 
       expect(result.Item).toBeUndefined();
     });
@@ -254,47 +191,28 @@ describe("Friend Workflow Integration Tests", () => {
       const player1 = "test-player1";
       const player2 = "test-player2";
 
-      // Setup: Create friend relationship
-      await db
-        .put({
-          TableName: tableName,
-          Item: {
-            player_id: player1,
-            friend_id: player2,
-            state: "Friends",
-            last_updated: Date.now(),
-          },
-        })
-        .promise();
+      await db.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          player_id: player1,
+          friend_id: player2,
+          state: "Friends",
+          last_updated: Date.now(),
+        },
+      }));
 
-      // Unfriend
-      await db
-        .delete({
-          TableName: tableName,
-          Key: {
-            player_id: player1,
-            friend_id: player2,
-          },
-          ConditionExpression: "#state = :friends",
-          ExpressionAttributeNames: {
-            "#state": "state",
-          },
-          ExpressionAttributeValues: {
-            ":friends": "Friends",
-          },
-        })
-        .promise();
+      await db.send(new DeleteCommand({
+        TableName: tableName,
+        Key: { player_id: player1, friend_id: player2 },
+        ConditionExpression: "#state = :friends",
+        ExpressionAttributeNames: { "#state": "state" },
+        ExpressionAttributeValues: { ":friends": "Friends" },
+      }));
 
-      // Verify item deleted
-      const result = await db
-        .get({
-          TableName: tableName,
-          Key: {
-            player_id: player1,
-            friend_id: player2,
-          },
-        })
-        .promise();
+      const result = await db.send(new GetCommand({
+        TableName: tableName,
+        Key: { player_id: player1, friend_id: player2 },
+      }));
 
       expect(result.Item).toBeUndefined();
     });
@@ -310,40 +228,28 @@ describe("Friend Workflow Integration Tests", () => {
       const player1 = "test-player1";
       const friends = ["test-player2", "test-player3"];
 
-      // Setup: Create multiple friend relationships
       for (const friend of friends) {
-        await db
-          .put({
-            TableName: tableName,
-            Item: {
-              player_id: player1,
-              friend_id: friend,
-              state: "Friends",
-              last_updated: Date.now(),
-            },
-          })
-          .promise();
+        await db.send(new PutCommand({
+          TableName: tableName,
+          Item: {
+            player_id: player1,
+            friend_id: friend,
+            state: "Friends",
+            last_updated: Date.now(),
+          },
+        }));
       }
 
-      // Query friends
-      const result = await db
-        .query({
-          TableName: tableName,
-          KeyConditionExpression: "#player_id = :player_id",
-          ExpressionAttributeNames: {
-            "#player_id": "player_id",
-          },
-          ExpressionAttributeValues: {
-            ":player_id": player1,
-          },
-        })
-        .promise();
+      const result = await db.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: "#player_id = :player_id",
+        ExpressionAttributeNames: { "#player_id": "player_id" },
+        ExpressionAttributeValues: { ":player_id": player1 },
+      }));
 
       expect(result.Items).toBeDefined();
       expect(result.Items!.length).toBe(2);
-      expect(result.Items!.every((item) => item.state === "Friends")).toBe(
-        true
-      );
+      expect(result.Items!.every((item) => item.state === "Friends")).toBe(true);
     });
   });
 });

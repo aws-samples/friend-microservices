@@ -1,26 +1,19 @@
 import { handler } from "../../lambda/acceptStateHandler";
 import { DynamoDBStreamEvent, DynamoDBBatchResponse } from "aws-lambda";
-import * as AWS from "aws-sdk";
 
-// Mock AWS SDK
-jest.mock("aws-sdk", () => {
-  const mockUpdate = jest.fn().mockReturnValue({ promise: jest.fn() });
-
-  return {
-    DynamoDB: {
-      DocumentClient: jest.fn(() => ({
-        update: mockUpdate,
-      })),
-    },
-  };
-});
+// Mock AWS SDK v3
+const mockSend = jest.fn();
+jest.mock("@aws-sdk/client-dynamodb", () => ({
+  DynamoDBClient: jest.fn(() => ({})),
+}));
+jest.mock("@aws-sdk/lib-dynamodb", () => ({
+  DynamoDBDocumentClient: { from: jest.fn(() => ({ send: (...args: any[]) => mockSend(...args) })) },
+  UpdateCommand: jest.fn((params: any) => ({ ...params, _type: "Update" })),
+}));
 
 describe("acceptStateHandler", () => {
-  let mockDb: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    mockDb = new AWS.DynamoDB.DocumentClient();
   });
 
   it("should update friend state to Friends for receiver", async () => {
@@ -44,14 +37,12 @@ describe("acceptStateHandler", () => {
       ],
     };
 
-    mockDb.update.mockReturnValue({
-      promise: jest.fn().mockResolvedValue({}),
-    });
+    mockSend.mockResolvedValue({});
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
     expect(result.batchItemFailures).toHaveLength(0);
-    expect(mockDb.update).toHaveBeenCalledWith(
+    expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         TableName: "Friend",
         Key: {
@@ -87,9 +78,7 @@ describe("acceptStateHandler", () => {
 
     const error: any = new Error("Conditional check failed");
     error.name = "ConditionalCheckFailedException";
-    mockDb.update.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(error),
-    });
+    mockSend.mockRejectedValue(error);
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
@@ -117,9 +106,7 @@ describe("acceptStateHandler", () => {
       ],
     };
 
-    mockDb.update.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(new Error("DynamoDB error")),
-    });
+    mockSend.mockRejectedValue(new Error("DynamoDB error"));
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
@@ -163,13 +150,11 @@ describe("acceptStateHandler", () => {
       ],
     };
 
-    mockDb.update.mockReturnValue({
-      promise: jest.fn().mockResolvedValue({}),
-    });
+    mockSend.mockResolvedValue({});
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
     expect(result.batchItemFailures).toHaveLength(0);
-    expect(mockDb.update).toHaveBeenCalledTimes(2);
+    expect(mockSend).toHaveBeenCalledTimes(2);
   });
 });

@@ -8,6 +8,6 @@ test("resource count test", () => {
   const template = Template.fromStack(stack);
 
   template.resourceCountIs("AWS::Lambda::Function", 6);
-  template.resourceCountIs("AWS::DynamoDB::Table", 1);
+  template.resourceCountIs("AWS::DynamoDB::GlobalTable", 1);
   template.resourceCountIs("AWS::SQS::Queue", 2);
 });

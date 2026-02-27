@@ -1,6 +1,6 @@
-import * as AWS from "aws-sdk";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import Aigle from "aigle";
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import {
   DynamoDBBatchItemFailure,
   DynamoDBBatchResponse,
@@ -10,7 +10,7 @@ import {
 import { Friend, State } from "../models/friend";
 import { keyMap, Keys, tableMap } from "../models/tableDecorator";
 
-const db = new AWS.DynamoDB.DocumentClient();
+const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const friendTableName = tableMap.get(Friend)!;
 const friendPk = keyMap.get(Friend)!.get(Keys.PK)!;
@@ -35,7 +35,7 @@ export const handler: DynamoDBStreamHandler = async ({
 };
 
 async function unfriend(playerId: string, friendId: string) {
-  const rejectParam: DocumentClient.DeleteItemInput = {
+  const rejectParam = {
     TableName: friendTableName,
     Key: {
       [friendPk]: friendId,
@@ -50,7 +50,7 @@ async function unfriend(playerId: string, friendId: string) {
     },
   };
   try {
-    await db.delete(rejectParam).promise();
+    await db.send(new DeleteCommand(rejectParam));
   } catch (e: any) {
     if (e.name == "ConditionalCheckFailedException") {
       // unfriendState Handler will be called twice for both players,

@@ -1,28 +1,20 @@
 import { handler } from "../../lambda/requestStateHandler";
 import { DynamoDBStreamEvent, DynamoDBBatchResponse } from "aws-lambda";
-import * as AWS from "aws-sdk";
 
-// Mock AWS SDK
-jest.mock("aws-sdk", () => {
-  const mockPut = jest.fn().mockReturnValue({ promise: jest.fn() });
-  const mockTransactWrite = jest.fn().mockReturnValue({ promise: jest.fn() });
-
-  return {
-    DynamoDB: {
-      DocumentClient: jest.fn(() => ({
-        put: mockPut,
-        transactWrite: mockTransactWrite,
-      })),
-    },
-  };
-});
+// Mock AWS SDK v3
+const mockSend = jest.fn();
+jest.mock("@aws-sdk/client-dynamodb", () => ({
+  DynamoDBClient: jest.fn(() => ({})),
+}));
+jest.mock("@aws-sdk/lib-dynamodb", () => ({
+  DynamoDBDocumentClient: { from: jest.fn(() => ({ send: (...args: any[]) => mockSend(...args) })) },
+  PutCommand: jest.fn((params: any) => ({ ...params, _type: "Put" })),
+  TransactWriteCommand: jest.fn((params: any) => ({ ...params, _type: "TransactWrite" })),
+}));
 
 describe("requestStateHandler", () => {
-  let mockDb: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    mockDb = new AWS.DynamoDB.DocumentClient();
   });
 
   it("should create pending request for receiver", async () => {
@@ -46,14 +38,12 @@ describe("requestStateHandler", () => {
       ],
     };
 
-    mockDb.put.mockReturnValue({
-      promise: jest.fn().mockResolvedValue({}),
-    });
+    mockSend.mockResolvedValue({});
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
     expect(result.batchItemFailures).toHaveLength(0);
-    expect(mockDb.put).toHaveBeenCalledWith(
+    expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         TableName: "Friend",
         Item: expect.objectContaining({
@@ -88,18 +78,15 @@ describe("requestStateHandler", () => {
 
     const error: any = new Error("Conditional check failed");
     error.name = "ConditionalCheckFailedException";
-    mockDb.put.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(error),
-    });
-
-    mockDb.transactWrite.mockReturnValue({
-      promise: jest.fn().mockResolvedValue({}),
-    });
+    mockSend
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({});
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
     expect(result.batchItemFailures).toHaveLength(0);
-    expect(mockDb.transactWrite).toHaveBeenCalledWith(
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(mockSend).toHaveBeenLastCalledWith(
       expect.objectContaining({
         TransactItems: expect.arrayContaining([
           expect.objectContaining({
@@ -148,17 +135,15 @@ describe("requestStateHandler", () => {
 
     const putError: any = new Error("Conditional check failed");
     putError.name = "ConditionalCheckFailedException";
-    mockDb.put.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(putError),
-    });
 
     const transactError: any = new Error(
       "Transaction cancelled: TransactionConflict"
     );
     transactError.name = "TransactionCanceledException";
-    mockDb.transactWrite.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(transactError),
-    });
+
+    mockSend
+      .mockRejectedValueOnce(putError)
+      .mockRejectedValueOnce(transactError);
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
@@ -189,15 +174,13 @@ describe("requestStateHandler", () => {
 
     const putError: any = new Error("Conditional check failed");
     putError.name = "ConditionalCheckFailedException";
-    mockDb.put.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(putError),
-    });
 
     const transactError: any = new Error("Transaction cancelled");
     transactError.name = "TransactionCanceledException";
-    mockDb.transactWrite.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(transactError),
-    });
+
+    mockSend
+      .mockRejectedValueOnce(putError)
+      .mockRejectedValueOnce(transactError);
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
@@ -225,9 +208,7 @@ describe("requestStateHandler", () => {
       ],
     };
 
-    mockDb.put.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(new Error("DynamoDB error")),
-    });
+    mockSend.mockRejectedValue(new Error("DynamoDB error"));
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 

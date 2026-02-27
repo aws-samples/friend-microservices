@@ -1,28 +1,20 @@
 import { handler } from "../../lambda/readHandler";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import * as AWS from "aws-sdk";
 
-// Mock AWS SDK
-jest.mock("aws-sdk", () => {
-  const mockGet = jest.fn().mockReturnValue({ promise: jest.fn() });
-  const mockQuery = jest.fn().mockReturnValue({ promise: jest.fn() });
-
-  return {
-    DynamoDB: {
-      DocumentClient: jest.fn(() => ({
-        get: mockGet,
-        query: mockQuery,
-      })),
-    },
-  };
-});
+// Mock AWS SDK v3
+const mockSend = jest.fn();
+jest.mock("@aws-sdk/client-dynamodb", () => ({
+  DynamoDBClient: jest.fn(() => ({})),
+}));
+jest.mock("@aws-sdk/lib-dynamodb", () => ({
+  DynamoDBDocumentClient: { from: jest.fn(() => ({ send: (...args: any[]) => mockSend(...args) })) },
+  GetCommand: jest.fn((params: any) => ({ ...params, _type: "Get" })),
+  QueryCommand: jest.fn((params: any) => ({ ...params, _type: "Query" })),
+}));
 
 describe("readHandler", () => {
-  let mockDb: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    mockDb = new AWS.DynamoDB.DocumentClient();
   });
 
   describe("GET /friends/{playerId}", () => {
@@ -40,9 +32,7 @@ describe("readHandler", () => {
         { player_id: "player1", friend_id: "player3", state: "Pending" },
       ];
 
-      mockDb.query.mockReturnValue({
-        promise: jest.fn().mockResolvedValue({ Items: mockItems }),
-      });
+      mockSend.mockResolvedValue({ Items: mockItems });
 
       const result = (await handler(
         event as APIGatewayProxyEvent,
@@ -52,7 +42,7 @@ describe("readHandler", () => {
 
       expect(result.statusCode).toBe(200);
       expect(JSON.parse(result.body)).toEqual(mockItems);
-      expect(mockDb.query).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           TableName: "Friend",
           KeyConditionExpression: "#player_id = :player_id",
@@ -72,9 +62,7 @@ describe("readHandler", () => {
         },
       };
 
-      mockDb.query.mockReturnValue({
-        promise: jest.fn().mockResolvedValue({ Items: [] }),
-      });
+      mockSend.mockResolvedValue({ Items: [] });
 
       const result = (await handler(
         event as APIGatewayProxyEvent,
@@ -98,11 +86,7 @@ describe("readHandler", () => {
         },
       };
 
-      mockDb.get.mockReturnValue({
-        promise: jest
-          .fn()
-          .mockResolvedValue({ Item: { state: "Friends" } }),
-      });
+      mockSend.mockResolvedValue({ Item: { state: "Friends" } });
 
       const result = (await handler(
         event as APIGatewayProxyEvent,
@@ -112,7 +96,7 @@ describe("readHandler", () => {
 
       expect(result.statusCode).toBe(200);
       expect(result.body).toBe("Friends");
-      expect(mockDb.get).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           TableName: "Friend",
           Key: {
@@ -133,11 +117,7 @@ describe("readHandler", () => {
         },
       };
 
-      mockDb.get.mockReturnValue({
-        promise: jest
-          .fn()
-          .mockResolvedValue({ Item: { state: "Pending" } }),
-      });
+      mockSend.mockResolvedValue({ Item: { state: "Pending" } });
 
       const result = (await handler(
         event as APIGatewayProxyEvent,
@@ -159,11 +139,7 @@ describe("readHandler", () => {
         },
       };
 
-      mockDb.get.mockReturnValue({
-        promise: jest
-          .fn()
-          .mockResolvedValue({ Item: { state: "Requested" } }),
-      });
+      mockSend.mockResolvedValue({ Item: { state: "Requested" } });
 
       const result = (await handler(
         event as APIGatewayProxyEvent,
@@ -200,9 +176,7 @@ describe("readHandler", () => {
         },
       };
 
-      mockDb.query.mockReturnValue({
-        promise: jest.fn().mockRejectedValue(new Error("DynamoDB error")),
-      });
+      mockSend.mockRejectedValue(new Error("DynamoDB error"));
 
       await expect(
         handler(event as APIGatewayProxyEvent, {} as any, {} as any)

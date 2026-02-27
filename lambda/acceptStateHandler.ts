@@ -1,6 +1,6 @@
-import * as AWS from "aws-sdk";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import Aigle from "aigle";
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import {
   DynamoDBBatchItemFailure,
   DynamoDBBatchResponse,
@@ -10,7 +10,7 @@ import {
 import { Friend, State } from "../models/friend";
 import { keyMap, Keys, tableMap } from "../models/tableDecorator";
 
-const db = new AWS.DynamoDB.DocumentClient();
+const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const friendTableName = tableMap.get(Friend)!;
 const friendPk = keyMap.get(Friend)!.get(Keys.PK)!;
@@ -40,7 +40,7 @@ export const handler: DynamoDBStreamHandler = async ({
 };
 
 async function accept(playerId: string, friendId: string, timeStamp: number) {
-  const updateReceiverParams: DocumentClient.UpdateItemInput = {
+  const updateReceiverParams = {
     TableName: friendTableName,
     Key: {
       [friendPk]: friendId,
@@ -60,7 +60,7 @@ async function accept(playerId: string, friendId: string, timeStamp: number) {
   };
 
   try {
-    await db.update(updateReceiverParams).promise();
+    await db.send(new UpdateCommand(updateReceiverParams));
   } catch (e: any) {
     if (e.name == "ConditionalCheckFailedException") {
       console.log(`could not accept, state is not ${State.Requested}`);

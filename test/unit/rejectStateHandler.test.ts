@@ -1,26 +1,19 @@
 import { handler } from "../../lambda/rejectStateHandler";
 import { DynamoDBStreamEvent, DynamoDBBatchResponse } from "aws-lambda";
-import * as AWS from "aws-sdk";
 
-// Mock AWS SDK
-jest.mock("aws-sdk", () => {
-  const mockDelete = jest.fn().mockReturnValue({ promise: jest.fn() });
-
-  return {
-    DynamoDB: {
-      DocumentClient: jest.fn(() => ({
-        delete: mockDelete,
-      })),
-    },
-  };
-});
+// Mock AWS SDK v3
+const mockSend = jest.fn();
+jest.mock("@aws-sdk/client-dynamodb", () => ({
+  DynamoDBClient: jest.fn(() => ({})),
+}));
+jest.mock("@aws-sdk/lib-dynamodb", () => ({
+  DynamoDBDocumentClient: { from: jest.fn(() => ({ send: (...args: any[]) => mockSend(...args) })) },
+  DeleteCommand: jest.fn((params: any) => ({ ...params, _type: "Delete" })),
+}));
 
 describe("rejectStateHandler", () => {
-  let mockDb: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    mockDb = new AWS.DynamoDB.DocumentClient();
   });
 
   it("should delete pending request for receiver", async () => {
@@ -44,14 +37,12 @@ describe("rejectStateHandler", () => {
       ],
     };
 
-    mockDb.delete.mockReturnValue({
-      promise: jest.fn().mockResolvedValue({}),
-    });
+    mockSend.mockResolvedValue({});
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
     expect(result.batchItemFailures).toHaveLength(0);
-    expect(mockDb.delete).toHaveBeenCalledWith(
+    expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         TableName: "Friend",
         Key: {
@@ -86,9 +77,7 @@ describe("rejectStateHandler", () => {
 
     const error: any = new Error("Conditional check failed");
     error.name = "ConditionalCheckFailedException";
-    mockDb.delete.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(error),
-    });
+    mockSend.mockRejectedValue(error);
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
@@ -116,9 +105,7 @@ describe("rejectStateHandler", () => {
       ],
     };
 
-    mockDb.delete.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(new Error("DynamoDB error")),
-    });
+    mockSend.mockRejectedValue(new Error("DynamoDB error"));
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
@@ -162,13 +149,11 @@ describe("rejectStateHandler", () => {
       ],
     };
 
-    mockDb.delete.mockReturnValue({
-      promise: jest.fn().mockResolvedValue({}),
-    });
+    mockSend.mockResolvedValue({});
 
     const result = (await handler(event, {} as any, {} as any)) as DynamoDBBatchResponse;
 
     expect(result.batchItemFailures).toHaveLength(0);
-    expect(mockDb.delete).toHaveBeenCalledTimes(2);
+    expect(mockSend).toHaveBeenCalledTimes(2);
   });
 });

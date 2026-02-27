@@ -1,6 +1,6 @@
-import * as AWS from "aws-sdk";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import Aigle from "aigle";
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import {
   DynamoDBBatchItemFailure,
   DynamoDBBatchResponse,
@@ -10,7 +10,8 @@ import {
 import { Friend, State } from "../models/friend";
 import { keyMap, Keys, tableMap } from "../models/tableDecorator";
 
-const db = new AWS.DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const db = DynamoDBDocumentClient.from(client);
 
 const friendTableName = tableMap.get(Friend)!;
 const friendPk = keyMap.get(Friend)!.get(Keys.PK)!;
@@ -44,7 +45,7 @@ async function request(
   receiverId: string,
   timeStamp: number
 ) {
-  const friendParam: DocumentClient.PutItemInput = {
+  const friendParam = {
     TableName: friendTableName,
     Item: {
       [friendPk]: receiverId,
@@ -55,7 +56,7 @@ async function request(
     ConditionExpression: `attribute_not_exists(${friendPk})`,
   };
   try {
-    await db.put(friendParam).promise();
+    await db.send(new PutCommand(friendParam));
   } catch (e: any) {
     if (e.name == "ConditionalCheckFailedException") {
       await failedToRequest(requesterId, receiverId, timeStamp);
@@ -70,7 +71,7 @@ async function failedToRequest(
   receiverId: string,
   timeStamp: number
 ) {
-  const updateReceiverParams: DocumentClient.TransactWriteItem = {
+  const updateReceiverParams = {
     Update: {
       TableName: friendTableName,
       Key: {
@@ -91,7 +92,7 @@ async function failedToRequest(
     },
   };
 
-  const updateRequesterParam: DocumentClient.TransactWriteItem = {
+  const updateRequesterParam = {
     Update: {
       TableName: friendTableName,
       Key: {
@@ -113,11 +114,9 @@ async function failedToRequest(
   };
 
   try {
-    await db
-      .transactWrite({
+    await db.send(new TransactWriteCommand({
         TransactItems: [updateReceiverParams, updateRequesterParam],
-      })
-      .promise();
+      }));
   } catch (e: any) {
     if (e.name == "TransactionCanceledException") {
       if (e.message.includes("TransactionConflict")) {
