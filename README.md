@@ -149,7 +149,13 @@ Note: Tests require Docker or Finch to be running for CDK stack synthesis. If us
 
 ### Web UI
 
-After deploying, open `frontend/index.html` in your browser. Paste the Read API and Write API URLs (shown in the `cdk deploy` output) into the configuration panel, then use the two player panels to test friend workflows interactively.
+A local single-page app is included at `frontend/index.html` for testing friend workflows interactively.
+
+1. Open `frontend/index.html` in your browser
+2. Paste the Read API and Write API URLs from the `cdk deploy` output (they persist in localStorage)
+3. Use the From / Action / To dropdowns to send friend actions between 4 players (Alice, Bob, Charlie, Diana)
+4. The friend graph visualizes relationships in real-time with color-coded state edges
+5. Click player tabs to inspect each player's friend list and states
 
 ### Send Test Friend Action Events
 
